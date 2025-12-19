@@ -1,4 +1,5 @@
 {
   "endpoint": "host.docker.internal:4317",
+  "test_marker": "test",
   "insecure": true
 }

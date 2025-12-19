@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
+	"os"
 
 	"github.com/MadAppGang/dingo/pkg/dgo"
 	"go.opentelemetry.io/otel"
@@ -16,12 +16,13 @@ import (
 )
 
 type Config struct {
-	Endpoint string `json:"endpoint"`
-	Insecure bool   `json:"insecure"`
+	Endpoint   string `json:"endpoint"`
+	Insecure   bool   `json:"insecure"`
+	TestMarker string `json:"test_marker"`
 }
 
 func loadConfig(filepath string) dgo.Result[*Config, error] {
-	tmp, err := ioutil.ReadFile(filepath)
+	tmp, err := os.ReadFile(filepath)
 	if err != nil {
 		return dgo.Err[*Config](err)
 	}
@@ -55,7 +56,7 @@ func initTracer(ctx context.Context, endpoint string, insecure bool) dgo.Result[
 	return dgo.Ok[*trace.TracerProvider, error](tp)
 }
 
-func testTraces(ctx context.Context) error {
+func testTraces(ctx context.Context, testMarker string) error {
 	tracer := otel.Tracer("test-tracer")
 	_, span := tracer.Start(ctx, "test-span")
 	defer span.End()
@@ -63,6 +64,7 @@ func testTraces(ctx context.Context) error {
 	span.SetAttributes(
 		attribute.String("gen_ai.completion.0.content", "Fake response prompt"),
 		attribute.String("gen_ai.prompt.0.content", "Fake request prompt"),
+		attribute.String("test.marker", testMarker),
 	)
 
 	fmt.Println("✓ OpenTelemetry traces test completed")
@@ -106,7 +108,7 @@ func main() {
 
 	defer tp.Shutdown(ctx)
 
-	if err := testTraces(ctx); err != nil {
+	if err := testTraces(ctx, config.TestMarker); err != nil {
 		log.Fatalf("Traces test failed: %v", err)
 	}
 }
