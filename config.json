@@ -1,0 +1,4 @@
+{
+  "endpoint": "host.docker.internal:4317",
+  "insecure": true
+}

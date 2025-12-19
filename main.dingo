@@ -1,0 +1,96 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"io/ioutil"
+	"log"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+type Config struct {
+	Endpoint string `json:"endpoint"`
+	Insecure bool   `json:"insecure"`
+}
+
+func loadConfig(filepath string) Result[*Config, error] {
+	data := ioutil.ReadFile(filepath)?
+
+	var config Config
+	if err := json.Unmarshal(data, &config); err != nil {
+    		return Err[*Config](err)
+    	}
+
+	return &config
+}
+
+func initTracer(ctx context.Context, endpoint string, insecure bool) Result[*trace.TracerProvider, error] {
+	exporter := otlptracegrpc.New(ctx,
+		otlptracegrpc.WithEndpoint(endpoint),
+		otlptracegrpc.WithInsecure(),
+	)?
+
+	tp := trace.NewTracerProvider(
+		trace.WithBatcher(exporter),
+	)
+	otel.SetTracerProvider(tp)
+
+	fmt.Printf("✓ OpenTelemetry tracer initialized with OTLP GRPC exporter. Endpoint: %s\n", endpoint)
+
+	return tp
+}
+
+func testTraces(ctx context.Context) error {
+	tracer := otel.Tracer("test-tracer")
+	_, span := tracer.Start(ctx, "test-span")
+	defer span.End()
+
+	span.SetAttributes(
+      attribute.String("gen_ai.completion.0.content", "Fake response prompt"),
+      attribute.String("gen_ai.prompt.0.content", "Fake request prompt"),
+    )
+
+	fmt.Println("✓ OpenTelemetry traces test completed")
+	fmt.Println("If you go to the 'Distributed Tracing' application in Dynatrace and switch from 'requests' to 'spans' on the top left hand side of the screen, you should see the trace there.")
+	return nil
+}
+
+func main() {
+	configPath := flag.String("config", "config.json", "Path to configuration file")
+	flag.Parse()
+
+	var config *Config;
+	match loadConfig(*configPath) {
+	  Ok {c} => {
+	    config = c
+	  },
+
+      Err {err} => {
+    	log.Fatalf("Failed to load config: %v", err)
+      }
+	}
+
+	ctx := context.Background()
+
+	var tp *trace.TracerProvider;
+	match initTracer(ctx, config.Endpoint, config.Insecure) {
+	  Ok {provider} => {
+        tp = provider
+      },
+
+      Err {err} => {
+        log.Fatalf("Failed to initialize tracer: %v", err)
+      }
+    }
+    defer tp.Shutdown(ctx)
+
+	if err := testTraces(ctx); err != nil {
+	  log.Fatalf("Traces test failed: %v", err)
+	}
+}
