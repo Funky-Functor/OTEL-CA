@@ -11,13 +11,28 @@ Test tool to check OpenTelemetry configurations.
 
 ### Build the Docker image
 ```bash
-docker build -t otel-ca .
+docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/funkyfunctor-chris/otel_ca:202512182135 .
 ```
+
+:warning: This will build the image for multiple architectures (amd64 and arm64).
 
 ### Run the Docker container
 ```bash
-docker run -v $(pwd)/config.json:/app/config.json otel_ca:latest -config /app/config.json
+docker run -v $(pwd)/config.json:/app/config.json ghcr.io/funkyfunctor-chris/otel_ca:202512182135 -config /app/config.json
 ```
+
+### Push the Docker image to GitHub Container Registry
+You first need to login to GitHub Container Registry:
+```bash
+echo <Personal Access Token> | docker login ghcr.io -u FunkyFunctor-Chris --password-stdin
+```
+
+Once you are logged in, you can push the image:
+```bash
+docker push ghcr.io/funkyfunctor-chris/otel_ca:202512182135
+```
+
+Once it has been pushed, the image should be visible at [the following location](https://github.com/users/FunkyFunctor-Chris/packages/container/package/otel_ca)
 
 ## DQL Query to find the generated traces
 
